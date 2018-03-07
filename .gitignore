@@ -9,6 +9,9 @@ __pycache__/
 # Jupyter notebook checkpoints
 .ipynb_checkpoints
 
+# DS store
+.DS_Store
+
 # Data directory
 data/
 
