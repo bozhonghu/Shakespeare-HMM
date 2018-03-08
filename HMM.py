@@ -13,7 +13,7 @@ class HiddenMarkovModel:
     Class implementation of Hidden Markov Models.
     '''
 
-    def __init__(self, A, O):
+    def __init__(self, A, O, syl_dict):
         '''
         Initializes an HMM. Assumes the following:
             - States and observations are integers starting from 0. 
@@ -52,6 +52,7 @@ class HiddenMarkovModel:
         self.A = A
         self.O = O
         self.A_start = [1. / self.L for _ in range(self.L)]
+        self.syl_dict = syl_dict
 
 
     def viterbi(self, x):
@@ -395,37 +396,93 @@ class HiddenMarkovModel:
             states:     The randomly generated states as a list.
         '''
 
-        emission = []
-        state = random.choice(range(self.L))
-        states = []
+        inv_dict = {}
+
+        for key in range(6):
+            for value in self.syl_dict[str(key)]:
+                inv_dict[value] = key
+
+        final = []
 
         for t in range(M):
-            # Append state.
-            states.append(state)
 
-            # Sample next observation.
+            emission = []
+            state = random.choice(range(self.L))
+            states = []
+
+            # Count syllables:
+            syl_left = 10
+            while syl_left > 0:
+
+                # Append state.
+                states.append(state)
+
+                # Sample next observation.
+                rand_var = random.uniform(0, 1)
+                next_obs = 0
+
+                syl_state = list(self.O[state])
+
+                # Remove punctuation
+                for obs in range(len(syl_state)):
+                    if obs in self.syl_dict['0']:
+                        syl_state[obs] = 0
+
+                # Remove all impossible syls
+                if syl_left < 5:
+                    for ind in range(5 - syl_left):
+                        remove = self.syl_dict[str(5-ind)]
+
+                        # Don't remove end of sentence words
+                        keep = self.syl_dict['E' + str(syl_left)]
+                        remove = [ele for ele in remove if ele not in keep]
+                        for obs in remove:
+                            syl_state[obs] = 0
+
+                while rand_var > 0:
+                    rand_var -= syl_state[next_obs] / sum(syl_state)
+                    next_obs += 1
+
+                next_obs -= 1
+                emission.append(next_obs)
+                syl_left -= inv_dict[next_obs]
+
+                # Sample next state.
+                rand_var = random.uniform(0, 1)
+                next_state = 0
+
+                while rand_var > 0:
+                    rand_var -= self.A[state][next_state]
+                    next_state += 1
+
+                next_state -= 1
+                state = next_state
+
+            # Add punctuation to end
+            syl_state = list(self.O[state])
+            for obs in range(len(syl_state)):
+                if obs not in self.syl_dict['0']:
+                    syl_state[obs] = 0
+
+            if sum(syl_state) == 0:
+                emission.append(0)
+                final += emission
+                continue
+
             rand_var = random.uniform(0, 1)
             next_obs = 0
 
             while rand_var > 0:
-                rand_var -= self.O[state][next_obs]
+                rand_var -= syl_state[next_obs] / sum(syl_state)
                 next_obs += 1
 
-            next_obs -= 1
-            emission.append(next_obs)
+            emission.append(next_obs - 1)
 
-            # Sample next state.
-            rand_var = random.uniform(0, 1)
-            next_state = 0
+            # Add new line character and add to final em
+            emission.append(0)
+            final += emission
 
-            while rand_var > 0:
-                rand_var -= self.A[state][next_state]
-                next_state += 1
-
-            next_state -= 1
-            state = next_state
-
-        return emission, states
+        return final, states
 
 
     def probability_alphas(self, x):
@@ -531,7 +588,7 @@ def supervised_HMM(X, Y):
     return HMM
 
 
-def unsupervised_HMM(X, n_states, N_iters):
+def unsupervised_HMM(X, n_states, N_iters, syl_dict):
     '''
     Helper function to train an unsupervised HMM. The function determines the
     number of unique observations in the given data, initializes
@@ -574,7 +631,7 @@ def unsupervised_HMM(X, n_states, N_iters):
             O[i][j] /= norm
 
     # Train an HMM with unlabeled data.
-    HMM = HiddenMarkovModel(A, O)
+    HMM = HiddenMarkovModel(A, O, syl_dict)
     HMM.unsupervised_learning(X, N_iters)
 
     return HMM
