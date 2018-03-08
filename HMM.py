@@ -426,7 +426,7 @@ class HiddenMarkovModel:
                 # Remove punctuation
                 for obs in range(len(syl_state)):
                     if obs in self.syl_dict['0']:
-                        syl_state[obs] = 0
+                        syl_state[obs] /= 10
 
                 # Remove all impossible syls
                 if syl_left < 5:
@@ -461,7 +461,9 @@ class HiddenMarkovModel:
             # Add punctuation to end
             syl_state = list(self.O[state])
             for obs in range(len(syl_state)):
-                if obs not in self.syl_dict['0']:
+                if obs not in ( self.syl_dict['0'][2:6] +
+                                [self.syl_dict['0'][7]] +
+                                [self.syl_dict['0'][10]]):
                     syl_state[obs] = 0
 
             if sum(syl_state) == 0:
