@@ -523,13 +523,17 @@ class HiddenMarkovModel:
         final.append([rhyme1])
         final.append([rhyme2])
 
+        new_final = []
+
         for ind, emission in enumerate(final):
 
             states = []
 
             # Randomly choose first state based on word
+            newO = np.array(self.O)
+
             state = np.random.choice(self.L,
-                p=[self.O[ind][emission[0]] / sum(self.O[:][emission[0]]) for ind in range(self.L)])
+                p=[newO[ind, emission[0]] / np.sum(newO[:, emission[0]]) for ind in range(self.L)])
 
             # Count syllables:
             syl_left = 10 - inv_dict[emission[0]]
@@ -558,7 +562,7 @@ class HiddenMarkovModel:
                 # Remove punctuation
                 for obs in range(len(syl_state)):
                     if obs in self.syl_dict['0']:
-                        syl_state[obs] = 0
+                        syl_state[obs] /= 10
 
                 # Remove all impossible syls
                 if syl_left < 5:
@@ -577,7 +581,9 @@ class HiddenMarkovModel:
 
             # Flip each thing
             emission = emission[::-1]
-            state = states[::-1]
+            states = states[::-1]
+
+            state = states[-1]
 
             # Find next state
             rand_var = random.uniform(0, 1)
@@ -593,12 +599,14 @@ class HiddenMarkovModel:
             # Add punctuation to end
             syl_state = list(self.O[state])
             for obs in range(len(syl_state)):
-                if obs not in self.syl_dict['0']:
+                if obs not in ( self.syl_dict['0'][2:6] +
+                                [self.syl_dict['0'][7]] +
+                                [self.syl_dict['0'][10]]):
                     syl_state[obs] = 0
 
             if sum(syl_state) == 0:
                 emission.append(0)
-                final += emission
+                new_final += emission
                 continue
 
             rand_var = random.uniform(0, 1)
@@ -612,9 +620,9 @@ class HiddenMarkovModel:
 
             # Add new line character and add to final em
             emission.append(0)
-            final[ind] = emission
+            new_final += emission
 
-        return final, states
+        return new_final, states
 
 
     def probability_alphas(self, x):
@@ -720,7 +728,7 @@ def supervised_HMM(X, Y):
     return HMM
 
 
-def unsupervised_HMM(X, n_states, N_iters, syl_dict):
+def unsupervised_HMM(X, n_states, N_iters, syl_dict, rhyme_pairs):
     '''
     Helper function to train an unsupervised HMM. The function determines the
     number of unique observations in the given data, initializes

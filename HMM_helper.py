@@ -127,6 +127,15 @@ def sample_sentence(hmm, obs_map, n_words=100):
 
     return ' '.join(sentence).capitalize() + '...'
 
+def sample_rhyme(hmm, obs_map):
+    # Get reverse map.
+    obs_map_r = obs_map_reverser(obs_map)
+
+    # Sample and convert sentence.
+    emission, states = hmm.generate_rhyme()
+    sentence = [obs_map_r[i] for i in emission]
+
+    return ' '.join(sentence).capitalize() + '...'
 
 ####################
 # HMM VISUALIZATION FUNCTIONS
