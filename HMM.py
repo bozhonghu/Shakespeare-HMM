@@ -7,13 +7,14 @@
 ########################################
 
 import random
+import numpy as np
 
 class HiddenMarkovModel:
     '''
     Class implementation of Hidden Markov Models.
     '''
 
-    def __init__(self, A, O, syl_dict):
+    def __init__(self, A, O, syl_dict, rhyme_pairs):
         '''
         Initializes an HMM. Assumes the following:
             - States and observations are integers starting from 0. 
@@ -53,6 +54,7 @@ class HiddenMarkovModel:
         self.O = O
         self.A_start = [1. / self.L for _ in range(self.L)]
         self.syl_dict = syl_dict
+        self.rp = rhyme_pairs
 
 
     def viterbi(self, x):
@@ -484,6 +486,134 @@ class HiddenMarkovModel:
 
         return final, states
 
+    def generate_rhyme(self):
+        '''
+        Generates an emission of length M, assuming that the starting state
+        is chosen uniformly at random. 
+
+        Arguments:
+            M:          Length of the emission to generate.
+
+        Returns:
+            emission:   The randomly generated emission as a list.
+
+            states:     The randomly generated states as a list.
+        '''
+
+        final = []
+        inv_dict = {}
+
+        for key in range(6):
+            for value in self.syl_dict[str(key)]:
+                inv_dict[value] = key
+
+        # Set quatrain rhyme scheme
+        for i in range(3):
+            rhyme1, rhyme3 = random.choice(self.rp)
+            rhyme2, rhyme4 = random.choice(self.rp)
+            final.append([rhyme1])
+            final.append([rhyme2])
+            final.append([rhyme3])
+            final.append([rhyme4])
+
+        # Set couplet rhyme scheme
+        rhyme1, rhyme2 = random.choice(self.rp)
+        final.append([rhyme1])
+        final.append([rhyme2])
+
+        for ind, emission in enumerate(final):
+
+            states = []
+
+            # Randomly choose first state based on word
+            state = np.random.choice(self.L,
+                p=[self.O[ind][emission[0]] / sum(self.O[:][emission[0]]) for ind in range(self.L)])
+
+            # Count syllables:
+            syl_left = 10 - inv_dict[emission[0]]
+            while syl_left > 0:
+
+                # Append state.
+                states.append(state)
+
+                # Sample next state.
+                rand_var = random.uniform(0, 1)
+                next_state = 0
+
+                while rand_var > 0:
+                    rand_var -= self.A[state][next_state]
+                    next_state += 1
+
+                next_state -= 1
+                state = next_state
+
+                # Sample next observation.
+                rand_var = random.uniform(0, 1)
+                next_obs = 0
+
+                syl_state = list(self.O[state])
+
+                # Remove punctuation
+                for obs in range(len(syl_state)):
+                    if obs in self.syl_dict['0']:
+                        syl_state[obs] = 0
+
+                # Remove all impossible syls
+                if syl_left < 5:
+                    for ind in range(5 - syl_left):
+                        remove = self.syl_dict[str(5-ind)]
+                        for obs in remove:
+                            syl_state[obs] = 0
+
+                while rand_var > 0:
+                    rand_var -= syl_state[next_obs] / sum(syl_state)
+                    next_obs += 1
+
+                next_obs -= 1
+                emission.append(next_obs)
+                syl_left -= inv_dict[next_obs]
+
+            # Flip each thing
+            emission = emission[::-1]
+            state = states[::-1]
+
+            # Find next state
+            rand_var = random.uniform(0, 1)
+            next_state = 0
+
+            while rand_var > 0:
+                rand_var -= self.A[state][next_state]
+                next_state += 1
+
+            next_state -= 1
+            state = next_state
+
+            # Add punctuation to end
+            syl_state = list(self.O[state])
+            for obs in range(len(syl_state)):
+                if obs not in self.syl_dict['0']:
+                    syl_state[obs] = 0
+
+            if sum(syl_state) == 0:
+                emission.append(0)
+                final += emission
+                continue
+
+            rand_var = random.uniform(0, 1)
+            next_obs = 0
+
+            while rand_var > 0:
+                rand_var -= syl_state[next_obs] / sum(syl_state)
+                next_obs += 1
+
+            emission.append(next_obs - 1)
+
+            # Add new line character and add to final em
+            emission.append(0)
+            final[ind] = emission
+
+        return final, states
+
 
     def probability_alphas(self, x):
         '''
@@ -631,7 +761,7 @@ def unsupervised_HMM(X, n_states, N_iters, syl_dict):
             O[i][j] /= norm
 
     # Train an HMM with unlabeled data.
-    HMM = HiddenMarkovModel(A, O, syl_dict)
+    HMM = HiddenMarkovModel(A, O, syl_dict, rhyme_pairs)
     HMM.unsupervised_learning(X, N_iters)
 
     return HMM
